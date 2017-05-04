@@ -1,0 +1,135 @@
+<!DOCTYPE HTML> 
+<html lang="en"> 
+<head>
+<title>Teapot</title>
+<meta charset="utf-8"> 
+</head>
+
+    
+<script id="shader-vs" type="x-shader/x-vertex">
+   attribute vec4 aVertexColor;
+   attribute vec3 aVertexNormal;
+   attribute vec3 aVertexPosition;
+
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    uniform mat4 uRotate;
+
+
+    uniform vec3 uLightPosition;
+    uniform vec3 uAmbientLightColor;
+    uniform vec3 uDiffuseLightColor;
+    uniform vec3 uSpecularLightColor;
+
+    const float shininess = 125.0;
+
+    varying vec4 vColor;
+    varying vec3 vVertexPosition;
+    varying vec3 vVertexNormal;
+
+    void main(void) {
+
+    // Get the vertex position in eye coordinates
+    vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+    vec3 vertexPositionEye3 = vertexPositionEye4.xyz / vertexPositionEye4.w;
+
+    // Calculate the vector (l) to the light source
+    vec3 vectorToLightSource = normalize(uLightPosition - vertexPositionEye3);
+
+    // Transform the normal (n) to eye coordinates
+    vec3 normalEye = normalize(uNMatrix * aVertexNormal);
+
+    // Calculate n dot l for diffuse lighting
+    float diffuseLightWeightning = max(dot(normalEye,
+                                    vectorToLightSource), 0.0);
+
+    // Calculate the reflection vector (r) that is needed for specular light
+    vec3 reflectionVector = normalize(reflect(-vectorToLightSource,
+                                             normalEye));
+
+    // The camera in eye coordinates is located in the origin and is pointing
+    // along the negative z-axis. Calculate viewVector (v)
+    // in eye coordinates as:
+    //// (0.0, 0.0, 0.0) - vertexPositionEye3
+    vec3 viewVectorEye = -normalize(vertexPositionEye3);
+
+    float rdotv = max(dot(reflectionVector, viewVectorEye), 0.0);
+
+    float specularLightWeightning = pow(rdotv, shininess);
+
+    // Sum up all three reflection components and send to the fragment shader
+    vColor = vec4((uAmbientLightColor
+                + uDiffuseLightColor * diffuseLightWeightning
+                + uSpecularLightColor * specularLightWeightning),1.0);
+    vColor += aVertexColor;
+
+     gl_Position = uPMatrix*uMVMatrix*vec4(aVertexPosition, 1.0);
+
+    vVertexPosition = aVertexPosition;
+    vec4 t = uRotate * vec4(aVertexNormal, 1.0);
+    vVertexNormal = vec3(t[0],t[1],t[2]);
+
+
+
+    }
+
+</script>
+  
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    varying vec4 vColor;
+    //uniform samplerCube uCubeSampler;
+    // varying vec2 vTextureCoord;
+    varying vec3 vVertexNormal;
+    varying vec3 vVertexPosition;
+
+    uniform samplerCube uSampler;
+    uniform vec3 viewDir;
+    uniform float Skybox;
+    uniform float shaderSwitch;
+
+
+    void main(void) {
+        if(Skybox > 0.5)
+          gl_FragColor = textureCube(uSampler,normalize(vVertexPosition));
+        else{
+          if(shaderSwitch > 0.5){
+            vec3 reflect = 2.0 * dot(vVertexNormal, -viewDir) * vVertexNormal - viewDir;
+            gl_FragColor = textureCube(uSampler, normalize(reflect));
+          }
+          else
+            gl_FragColor = vec4(vec3(vVertexNormal),1.0) + vColor;
+        }
+    }
+
+
+</script>
+
+<script src="gl-matrix-min.js"></script> 
+<script src="webgl-utils.js"></script>
+<script src="simpleModeling.js"></script>  
+<script src="Discussion5Demo.js"></script>   
+<body onload="startup();">
+<div id="Controls">
+ <ul>
+  <li> Press A to rotate the teapot clockwise </li>
+  <li> Press D to rotate the teapot counterclockwise </li>
+  <li> Left arrow key -- change the view of teapot around y axis (orbit left)</li>
+  <li> Right arrow key -- change the view of teapot around y axis (orbit right)</li>
+ </ul>
+</div>
+<form id="input_form">
+ <fieldset>
+  <legend>Teapot Status</legend>
+  Status
+  <input type="radio" name="status" id="reflect" value="reflect" > Reflective
+  <input type="radio" name="status" id="nreflect" value="nreflect"checked> Not Reflective<br>
+ </fieldset>
+</form>
+
+ <canvas id="myGLCanvas" width="800" height="800"></canvas>
+</body>
+
+</html>
